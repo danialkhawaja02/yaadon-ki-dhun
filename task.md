@@ -1,0 +1,44 @@
+# Task List: Soor Taal Music Console (Refined)
+
+- [x] Extend `PlayerProvider` to support Volume and Tuning Frequency.
+- [x] Create `components/player/knob.tsx` (supports incremental delta angle rotation dragging, valueRef state sync, high-contrast legibility, glitch-free full circles).
+- [x] Configure `app/globals.css` with theme tokens, wood-trim, vertical ribbed stripe `cream-chassis`, and tuner-screen styles.
+- [x] Update `components/top-bar.tsx` and `components/clock.tsx` to:
+  - Add high-contrast drop-shadows.
+  - Display only the Instagram profile link.
+  - Remove listener count and display only the FM Broadcast line alongside the pulsating red indicator dot.
+  - Ensure top-bar responsiveness on mobile by hiding the center FM broadcast block and scaling down font sizes.
+- [x] Create `lib/audio-effects.ts` and synthesize retro sound effects (mechanical click transients and FM bandpass static sweeps) using native HTML5 Web Audio API.
+- [x] Update `components/player/player-provider.tsx` to:
+  - Trigger audio click and tuning sweep noise effects.
+  - Sync dynamic YouTube playlist track metadata via `syncActiveTrack()` and `cleanYouTubeMetadata()`.
+  - Handle station frequency scanning linked to dynamic track counts.
+  - Initialize with clean, dynamic receiver placeholders (`Tuning Receiver...` and `Soor Taal FM`) instead of incorrect hardcoded songs on reload.
+  - Simplify `changePlaylist` to update state variables, preventing duplicate load triggers.
+  - Add seek throttling lock inside `updateProgress`, `seek`, and `commitSeek` to prevent the YouTube player progress-ticker from overriding the playhead during seek buffering.
+  - Initialize `isPlaying` state to `true` to enable automatic playback on initial load.
+- [x] Update `components/player/video-panel.tsx` to:
+  - Initialize the YouTube player with the playlist ID directly on mount (once).
+  - Sync active video metadata dynamically using `getVideoData()` on state/API shifts.
+  - Render a gorgeous, vintage CSS cassette tape illustration when in the placeholder loading state.
+  - Prevent race conditions and playlist swaps by tracking the active playlist in `loadedPlaylistIdRef` and dispatching `loadPlaylist` calls only when switching tabs.
+  - Restore object-based configuration parameters for `loadPlaylist` to ensure compatibility across player API versions.
+  - Use `isMountedRef` to skip playlist loading on the very first render and enable `autoplay: 1` directly inside player variables, forcing autoplay and removing out-of-sync switching delays.
+- [x] Create `components/player/tuner-dial.tsx` to render the interactive FM frequency dial scale (88–108 MHz) with click/drag tuning handlers.
+- [x] Update `components/player/seek-bar.tsx` to render a clean horizontal progress track (song timeline) with seek pointer capture.
+- [x] Update `components/player/transport.tsx` with four compact mechanical push-keys.
+- [x] Update `components/player/playlist-switcher.tsx` to center-align on mobile.
+- [x] Update `components/player/desktop-player.tsx` to:
+  - Remove tape C button.
+  - Render `<TunerDial />` component to enable interactive frequency snapping.
+  - Center song time readout (`currentTime / duration`) in footer.
+  - Bind `TUNE` knob to changeTuning (88.0 - 108.0 MHz) station scanning with static signal sweeps.
+  - Keep the original text offsets and labels layout (including the brand subtext `STEREO CASSETTE RECEIVER`), while fixing key button alignment by removing active margin-top style shifts.
+- [x] Update `components/player/mobile-player.tsx` to render the unified compact horizontal player.
+- [x] Update `components/main-layout.tsx` to:
+  - Force 100vh height, hide vertical scroll, and remove tagline.
+  - Center align the title logo image `/pic.png` in the upper background area above the console, styled with drop-shadows.
+- [x] Update `app/layout.tsx` to:
+  - Set website title to `Yaadon Ki Dhun - Pakistani 80, 90's songs`.
+  - Map favicon, shortcut, and Apple touch icons to `/pic.png`.
+- [x] Run production builds and verify clean compiles.
