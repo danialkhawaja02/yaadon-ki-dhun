@@ -10,10 +10,22 @@ declare global {
   }
 }
 
+/**
+ * VideoPanel – YouTube IFrame player wrapper.
+ *
+ * ARCHITECTURE: This component is rendered with `key={currentPlaylistId}`.
+ * When the user switches playlists, React unmounts the old VideoPanel and
+ * mounts a fresh one. Each mount creates a brand-new YouTube player with
+ * the correct playlist baked into `playerVars`. This eliminates:
+ *   - Stale closures (every mount gets current context values)
+ *   - loadPlaylist() API quirks (we never call it)
+ *   - Race conditions between old/new playlist data
+ */
 export default function VideoPanel() {
   const {
     currentTrack,
     currentPlaylistId,
+    youtubeListId,
     isPlaying,
     registerPlayer,
     updateProgress,
@@ -24,178 +36,154 @@ export default function VideoPanel() {
   } = usePlayer();
 
   const playerRef = useRef<any>(null);
-  const elementId = "yt-player-iframe-node";
   const [isReady, setIsReady] = useState(false);
-  
-  // Track the actual YouTube playlist ID loaded in the player to avoid race conditions
-  const loadedPlaylistIdRef = useRef<string | null>(null);
+  const elementId = `yt-player-${currentPlaylistId}`;
 
-  // Sync active track details from player data
-  const syncActiveTrackData = (playerInstance: any) => {
-    if (playerInstance && typeof playerInstance.getVideoData === "function") {
-      try {
-        const videoData = playerInstance.getVideoData();
-        const duration = playerInstance.getDuration() || 0;
-        const playlist = playerInstance.getPlaylist() || [];
-        const index = playerInstance.getPlaylistIndex() || 0;
-        const total = playlist.length || 1;
+  // ── Refs for the latest context callbacks ──────────────────────────
+  // The YT player's event handlers are registered once in the init effect
+  // and never re-created. By reading from refs, those handlers always
+  // call the current (not stale) versions of the provider functions.
+  const refs = useRef({ syncActiveTrack, onTrackEnded, onPlayerError, setIsPlayingState, currentTrack });
+  refs.current = { syncActiveTrack, onTrackEnded, onPlayerError, setIsPlayingState, currentTrack };
 
-        if (videoData && videoData.video_id) {
-          syncActiveTrack(videoData, duration, index, total);
-        }
-      } catch (err) {
-        console.error("Error syncing active track data:", err);
+  /** Pull metadata from the live YT player and push it into context. */
+  const syncTrackFromPlayer = (player: any) => {
+    if (!player || typeof player.getVideoData !== "function") return;
+    try {
+      const videoData = player.getVideoData();
+      const duration = player.getDuration() || 0;
+      const playlist = player.getPlaylist() || [];
+      const index = player.getPlaylistIndex() || 0;
+      const total = playlist.length || 1;
+      if (videoData?.video_id) {
+        refs.current.syncActiveTrack(videoData, duration, index, total);
       }
+    } catch (err) {
+      console.error("Error syncing track data:", err);
     }
   };
 
-  // Initialize YouTube IFrame Player (Once on mount)
+  // ── Create YouTube player (runs once per mount) ────────────────────
   useEffect(() => {
     let active = true;
 
-    const initPlayer = () => {
+    const createPlayer = () => {
       if (!active) return;
       try {
         playerRef.current = new window.YT.Player(elementId, {
           playerVars: {
-            autoplay: 1, // Force autoplay on reload
+            autoplay: 1,
             controls: 0,
             rel: 0,
             modestbranding: 1,
             origin: typeof window !== "undefined" ? window.location.origin : "",
             listType: "playlist",
-            list: currentPlaylistId === "ghazals" ? "PLK4FtdgIFLYQ" : "PLHIETQTp5UV8",
+            list: youtubeListId,
           },
           events: {
             onReady: () => {
               if (!active) return;
               setIsReady(true);
               registerPlayer(playerRef.current);
-              
-              // Set the initially loaded playlist ID to prevent double-loading on mount
-              loadedPlaylistIdRef.current = currentPlaylistId === "ghazals" ? "PLK4FtdgIFLYQ" : "PLHIETQTp5UV8";
-              
-              syncActiveTrackData(playerRef.current);
+              syncTrackFromPlayer(playerRef.current);
             },
             onStateChange: (event: any) => {
               if (!active) return;
               const state = event.data;
               if (state === window.YT.PlayerState.PLAYING) {
-                setIsPlayingState(true);
-                syncActiveTrackData(playerRef.current);
+                refs.current.setIsPlayingState(true);
+                syncTrackFromPlayer(playerRef.current);
               } else if (state === window.YT.PlayerState.PAUSED) {
-                setIsPlayingState(false);
+                refs.current.setIsPlayingState(false);
               } else if (state === window.YT.PlayerState.ENDED) {
-                onTrackEnded();
+                refs.current.onTrackEnded();
               }
             },
             onApiChange: () => {
               if (!active) return;
-              syncActiveTrackData(playerRef.current);
+              syncTrackFromPlayer(playerRef.current);
             },
             onError: (event: any) => {
               if (!active) return;
-              onPlayerError(event.data, currentTrack.videoId);
+              refs.current.onPlayerError(event.data, refs.current.currentTrack.videoId);
             },
           },
         });
       } catch (err) {
-        console.error("Failed to initialize YT.Player:", err);
+        console.error("Failed to create YT.Player:", err);
       }
     };
 
+    // If YouTube API is already loaded, create immediately
     if (window.YT && window.YT.Player) {
-      initPlayer();
+      createPlayer();
     } else {
+      // Load the IFrame API script (once globally)
       if (!document.getElementById("youtube-api-script")) {
         const tag = document.createElement("script");
         tag.id = "youtube-api-script";
         tag.src = "https://www.youtube.com/iframe_api";
-        const firstScriptTag = document.getElementsByTagName("script")[0];
-        firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+        const first = document.getElementsByTagName("script")[0];
+        first.parentNode?.insertBefore(tag, first);
       }
-
-      const prevCallback = window.onYouTubeIframeAPIReady;
+      const prev = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => {
-        if (prevCallback) prevCallback();
-        initPlayer();
+        if (prev) prev();
+        createPlayer();
       };
     }
 
+    // Cleanup: destroy the player when this component unmounts
     return () => {
       active = false;
-      if (playerRef.current && typeof playerRef.current.destroy === "function") {
-        try {
-          playerRef.current.destroy();
-        } catch (e) {
-          console.error("Error destroying YouTube Player:", e);
-        }
+      if (playerRef.current?.destroy) {
+        try { playerRef.current.destroy(); } catch (_) { /* ignore */ }
       }
+      playerRef.current = null;
       registerPlayer(null);
     };
-  }, []); // Run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Runs once per mount — key-based remount handles playlist changes
 
-  // Watch playback state change
+  // ── Sync external play/pause state with the YT player ──────────────
   useEffect(() => {
-    if (isReady && playerRef.current) {
-      try {
-        const state = playerRef.current.getPlayerState?.();
-        if (isPlaying && state !== window.YT.PlayerState.PLAYING) {
-          playerRef.current.playVideo?.();
-        } else if (!isPlaying && state === window.YT.PlayerState.PLAYING) {
-          playerRef.current.pauseVideo?.();
-        }
-      } catch (err) {
-        console.error("Error playing/pausing video panel:", err);
+    if (!isReady || !playerRef.current) return;
+    try {
+      const state = playerRef.current.getPlayerState?.();
+      if (isPlaying && state !== window.YT.PlayerState.PLAYING) {
+        playerRef.current.playVideo?.();
+      } else if (!isPlaying && state === window.YT.PlayerState.PLAYING) {
+        playerRef.current.pauseVideo?.();
       }
+    } catch (err) {
+      console.error("Error syncing play/pause:", err);
     }
   }, [isPlaying, isReady]);
 
-  // Watch playlist change from context to trigger loading new playlist in player
+  // ── Progress ticker ────────────────────────────────────────────────
   useEffect(() => {
-    if (!isReady || !playerRef.current || typeof playerRef.current.loadPlaylist !== "function") return;
-    
-    const targetListId = currentPlaylistId === "ghazals" ? "PLK4FtdgIFLYQ" : "PLHIETQTp5UV8";
-    
-    // Only call loadPlaylist if the target playlist is actually different from the loaded one
-    if (loadedPlaylistIdRef.current === targetListId) return;
-
-    try {
-      // Use direct string ID loading to avoid object configuration bugs in the YT Player API
-      playerRef.current.loadPlaylist(targetListId, 0);
-      loadedPlaylistIdRef.current = targetListId;
-    } catch (err) {
-      console.warn("Could not load playlist:", err);
-    }
-  }, [currentPlaylistId, isReady]);
-
-  // Micro-ticker for progress reports
-  useEffect(() => {
-    let intervalId: any;
-    if (isReady && isPlaying && playerRef.current) {
-      intervalId = setInterval(() => {
-        try {
-          if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
-            const currentTime = playerRef.current.getCurrentTime();
-            const duration = playerRef.current.getDuration() || 0;
-            updateProgress(currentTime, duration);
-          }
-        } catch (err) {
-          console.error("Error reporting progress in panel:", err);
+    if (!isReady || !isPlaying || !playerRef.current) return;
+    const id = setInterval(() => {
+      try {
+        if (playerRef.current?.getCurrentTime) {
+          const t = playerRef.current.getCurrentTime();
+          const d = playerRef.current.getDuration() || 0;
+          updateProgress(t, d);
         }
-      }, 250);
-    }
-    return () => clearInterval(intervalId);
+      } catch (_) { /* ignore */ }
+    }, 250);
+    return () => clearInterval(id);
   }, [isReady, isPlaying]);
 
+  // ── Render ─────────────────────────────────────────────────────────
   return (
     <div className="relative w-full h-full rounded overflow-hidden shadow-[inset_0_2px_5px_rgba(0,0,0,0.5)] border border-charcoal/20 flex items-center justify-center bg-black">
-      {/* Hidden YouTube player iframe node positioned off-screen */}
+      {/* Hidden YouTube player iframe (off-screen) */}
       <div className="absolute top-[-9999px] left-[-9999px] w-[1px] h-[1px] opacity-0 pointer-events-none">
         <div id={elementId} />
       </div>
 
-      {/* Dynamic cover: show retro CSS cassette tape if placeholder, else show YouTube thumbnail */}
+      {/* Cover art: cassette placeholder while loading, YouTube thumbnail once ready */}
       {(!currentTrack.videoId || currentTrack.videoId === "") ? (
         <div className="w-full h-full bg-[#18120e] flex flex-col items-center justify-center p-2 border border-charcoal/30 rounded select-none">
           {/* Cassette Shell Outline */}

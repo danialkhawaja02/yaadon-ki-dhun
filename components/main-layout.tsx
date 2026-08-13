@@ -43,7 +43,7 @@ export default function MainLayout() {
       {/* 5. Center Mohalla Title Graphic Area (Stretches to keep background visible) */}
       <div className="flex-1 min-h-0 flex items-center justify-center pointer-events-none select-none py-2 sm:py-4 animate-fadeIn" aria-hidden="true">
         <img
-          src="/pic.png"
+          src="/pic.webp"
           alt="Yaadon Ki Dhun"
           className="max-h-[22vh] sm:max-h-[34vh] w-auto object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.6)]"
         />

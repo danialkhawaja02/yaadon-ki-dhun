@@ -28,9 +28,9 @@ export const metadata: Metadata = {
   title: "Yaadon Ki Dhun - Pakistani 80, 90's songs",
   description: "Step into an old Pakistani neighborhood cassette shop and listen to classic ghazals, emerging pop, and vintage film music.",
   icons: {
-    icon: "/pic.png",
-    shortcut: "/pic.png",
-    apple: "/pic.png",
+    icon: "/pic.webp",
+    shortcut: "/pic.webp",
+    apple: "/pic.webp",
   },
 };
 

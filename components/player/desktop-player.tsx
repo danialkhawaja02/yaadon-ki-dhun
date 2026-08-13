@@ -32,7 +32,7 @@ export default function DesktopPlayer() {
           {/* Left Column: Cover art and Transport Buttons directly below it */}
           <div className="w-[110px] sm:w-[120px] shrink-0 flex flex-col gap-1.5 justify-between">
             <div className="flex-1 w-full overflow-hidden relative rounded shadow-sm border border-charcoal/20">
-              <VideoPanel />
+              <VideoPanel key={currentPlaylistId} />
             </div>
             <div className="w-full shrink-0">
               <Transport />

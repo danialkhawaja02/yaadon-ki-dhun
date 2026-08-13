@@ -69,6 +69,7 @@ export function cleanYouTubeMetadata(rawTitle: string, rawAuthor: string) {
 interface PlayerContextType {
   playlists: Playlist[];
   currentPlaylistId: string;
+  youtubeListId: string;
   currentTrackIndex: number;
   currentTrack: Track;
   isPlaying: boolean;
@@ -165,6 +166,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     currentPlaylistId === "ghazals" 
       ? "var(--color-ochre)" 
       : "var(--color-coral)";
+
+  // Resolve the YouTube playlist ID for the currently selected playlist
+  const currentPlaylist = PLAYLISTS.find(p => p.id === currentPlaylistId);
+  const youtubeListId = currentPlaylist?.youtubeListId || PLAYLISTS[0].youtubeListId;
 
   // Detect mobile viewports on mount
   useEffect(() => {
@@ -278,7 +283,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const syncActiveTrack = (videoData: any, videoDuration: number, index: number, total: number) => {
     if (!videoData) return;
 
-    const { title, artist } = cleanYouTubeMetadata(videoData.title, videoData.author);
+    const { title, artist } = cleanYouTubeMetadata(videoData.title || "", videoData.author || "");
     
     // Format duration MM:SS
     const mins = Math.floor(videoDuration / 60);
@@ -286,7 +291,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const durationStr = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 
     // Extract year from title or fallback
-    const yearMatch = videoData.title.match(/\b(19\d{2}|20\d{2})\b/);
+    const yearMatch = videoData.title ? videoData.title.match(/\b(19\d{2}|20\d{2})\b/) : null;
     const year = yearMatch ? parseInt(yearMatch[1], 10) : (currentPlaylistId === "ghazals" ? 1989 : 1992);
 
     const synced: Track = {
@@ -364,12 +369,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const changePlaylist = (playlistId: string) => {
     playClickSound();
+    if (playlistId === currentPlaylistId) return; // Already on this playlist
     setCurrentPlaylistId(playlistId);
     setCurrentTrackIndex(0);
     setDynamicTrack(null);
     setDynamicPlaylistLength(0);
     setCurrentTime(0);
     setDuration(0);
+    setIsPlaying(true); // New player will autoplay
   };
 
   const seek = (percent: number) => {
@@ -422,6 +429,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       value={{
         playlists: PLAYLISTS,
         currentPlaylistId,
+        youtubeListId,
         currentTrackIndex,
         currentTrack,
         isPlaying,

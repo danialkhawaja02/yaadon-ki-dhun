@@ -49,12 +49,12 @@ body {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  background-image: url('/bg/scene-wide.png');
+  background-image: url('/bg/scene-wide.webp');
 }
 
 @media (orientation: portrait) {
   .hero-bg {
-    background-image: url('/bg/scene-tall.png');
+    background-image: url('/bg/scene-tall.webp');
   }
 }
 
