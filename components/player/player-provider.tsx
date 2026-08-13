@@ -114,7 +114,7 @@ export const getTrackFrequency = (index: number, total: number) => {
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [currentPlaylistId, setCurrentPlaylistId] = useState("ghazals");
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 

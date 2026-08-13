@@ -72,7 +72,7 @@ export default function VideoPanel() {
       try {
         playerRef.current = new window.YT.Player(elementId, {
           playerVars: {
-            autoplay: 1,
+            autoplay: isPlaying ? 1 : 0,
             controls: 0,
             rel: 0,
             modestbranding: 1,
@@ -86,6 +86,14 @@ export default function VideoPanel() {
               setIsReady(true);
               registerPlayer(playerRef.current);
               syncTrackFromPlayer(playerRef.current);
+              
+              if (isPlaying) {
+                try {
+                  playerRef.current.playVideo?.();
+                } catch (e) {
+                  console.warn("Autoplay block on initial ready:", e);
+                }
+              }
             },
             onStateChange: (event: any) => {
               if (!active) return;
@@ -159,6 +167,35 @@ export default function VideoPanel() {
       console.error("Error syncing play/pause:", err);
     }
   }, [isPlaying, isReady]);
+
+  // ── Interaction fallback to start playback after user gesture ──────
+  useEffect(() => {
+    if (!isReady || !isPlaying || !playerRef.current) return;
+
+    const startPlay = () => {
+      try {
+        const state = playerRef.current.getPlayerState?.();
+        if (state !== window.YT.PlayerState.PLAYING) {
+          playerRef.current.playVideo?.();
+        }
+      } catch (e) {
+        console.error("Autoplay interaction fallback failed:", e);
+      }
+      cleanup();
+    };
+
+    const cleanup = () => {
+      window.removeEventListener("click", startPlay);
+      window.removeEventListener("pointerdown", startPlay);
+      window.removeEventListener("keydown", startPlay);
+    };
+
+    window.addEventListener("click", startPlay);
+    window.addEventListener("pointerdown", startPlay);
+    window.addEventListener("keydown", startPlay);
+
+    return cleanup;
+  }, [isReady, isPlaying]);
 
   // ── Progress ticker ────────────────────────────────────────────────
   useEffect(() => {
